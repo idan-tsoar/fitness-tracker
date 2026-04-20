@@ -7,6 +7,7 @@ const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש
 
 let state = null;
 let charts = {}; // Chart.js instances
+let activeLibraryCategory = 'lunch'; // לשונית פעילה במאגר החלופות
 
 /* ==================== טעינה והתחלה ==================== */
 async function init() {
@@ -16,20 +17,28 @@ async function init() {
 }
 
 async function loadData() {
-    // נסה לטעון מ-localStorage
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) return JSON.parse(stored);
-    } catch (e) { console.warn('localStorage read error', e); }
-
-    // אחרת - טען מ-data.json
+    // תמיד מביא את תפריט הבסיס והתפריט השבועי מ-data.json (כדי שעדכונים בתפריט ישתקפו מיד)
+    let freshData = null;
     try {
         const res = await fetch('data.json');
-        if (res.ok) return await res.json();
+        if (res.ok) freshData = await res.json();
     } catch (e) { console.warn('data.json fetch failed - using embedded defaults', e); }
+    if (!freshData) freshData = getDefaultData();
 
-    // fallback - ברירת מחדל מוטמעת (למקרה שמריצים דרך file:// והפטץ׳ חסום)
-    return getDefaultData();
+    // נתוני המשתמש (שבועות, הגדרות) נטענים מ-localStorage אם קיימים
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const saved = JSON.parse(stored);
+            return {
+                user: saved.user || freshData.user,
+                weeks: saved.weeks || freshData.weeks,
+                mealPlan: freshData.mealPlan // תמיד מהקובץ העדכני
+            };
+        }
+    } catch (e) { console.warn('localStorage read error', e); }
+
+    return freshData;
 }
 
 function saveData() {
@@ -358,6 +367,61 @@ function renderMeals() {
             ${d.prepNote ? `<div class="prep-note">💡 ${d.prepNote}</div>` : ''}
         </div>
     `).join('');
+
+    renderLibrary();
+}
+
+/* ==================== מאגר חלופות ==================== */
+function renderLibrary() {
+    const lib = state.mealPlan.library;
+    const container = document.getElementById('libraryContainer');
+    if (!container || !lib) return;
+
+    const categories = [
+        { key: 'breakfast', label: '🌅 ארוחות בוקר', icon: '🌅' },
+        { key: 'snacks', label: '🍎 חטיפי חלבון', icon: '🍎' },
+        { key: 'lunch', label: '🍽️ ארוחות צהריים', icon: '🍽️' },
+        { key: 'dinner', label: '🌙 ארוחות ערב', icon: '🌙' }
+    ];
+
+    const items = lib[activeLibraryCategory] || [];
+    container.innerHTML = `
+        <div class="library-header">
+            <h2>📚 מאגר חלופות — בחר לעצמך</h2>
+            <span class="subtitle">${items.length} אפשרויות בקטגוריה הזו</span>
+        </div>
+        <div class="library-tabs">
+            ${categories.map(c => `
+                <button class="lib-tab-btn ${c.key === activeLibraryCategory ? 'active' : ''}" data-cat="${c.key}">
+                    ${c.label} <span class="count">${(lib[c.key] || []).length}</span>
+                </button>
+            `).join('')}
+        </div>
+        <div class="library-grid">
+            ${items.map(m => `
+                <div class="lib-card">
+                    <div class="lib-card-header">
+                        <h4>${m.name}</h4>
+                        <span class="theme-tag">${m.theme}</span>
+                    </div>
+                    <ul class="lib-items">
+                        ${m.items.map(it => `<li>${it}</li>`).join('')}
+                    </ul>
+                    <div class="lib-card-footer">
+                        <span class="stat-badge">🔥 ${m.calories} קל׳</span>
+                        <span class="stat-badge">💪 ${m.protein} ג׳</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    container.querySelectorAll('.lib-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeLibraryCategory = btn.dataset.cat;
+            renderLibrary();
+        });
+    });
 }
 
 /* ==================== גרפים ==================== */
@@ -517,74 +581,4 @@ function renderSettings() {
         u.startingWeight = Number(document.getElementById('s-start').value);
         u.workoutsPerWeek = Number(document.getElementById('s-workouts').value);
         u.dailyCalorieTarget = Number(document.getElementById('s-cal').value);
-        u.dailyProteinTarget = Number(document.getElementById('s-prot').value);
-        saveData();
-        renderAll();
-        alert('✅ ההגדרות נשמרו');
-    });
-}
-
-/* ==================== ייצוא/ייבוא ==================== */
-function exportData() {
-    const json = JSON.stringify(state, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `diet_tracker_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-}
-
-function importData(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const loaded = JSON.parse(e.target.result);
-            if (!loaded.user || !loaded.weeks) throw new Error('קובץ לא תקין');
-            state = loaded;
-            saveData();
-            renderAll();
-            alert('✅ הנתונים יובאו בהצלחה');
-        } catch (err) {
-            alert('❌ שגיאה בייבוא: ' + err.message);
-        }
-    };
-    reader.readAsText(file);
-}
-
-function resetData() {
-    if (!confirm('איפוס ימחק את כל המעקב שלך ויחזיר לברירת מחדל. להמשיך?')) return;
-    localStorage.removeItem(STORAGE_KEY);
-    state = getDefaultData();
-    saveData();
-    renderAll();
-}
-
-/* ==================== אירועים ==================== */
-function attachEvents() {
-    // לשוניות
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById(btn.dataset.tab).classList.add('active');
-            // רענון גרפים כשעוברים ללשונית שלהם (Chart.js דורש גודל לעדכן)
-            if (btn.dataset.tab === 'graphs') setTimeout(renderGraphs, 50);
-        });
-    });
-
-    document.getElementById('addWeekBtn').addEventListener('click', addWeek);
-    document.getElementById('exportBtn').addEventListener('click', exportData);
-    document.getElementById('resetBtn').addEventListener('click', resetData);
-    document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
-    document.getElementById('importFile').addEventListener('change', (e) => {
-        if (e.target.files[0]) importData(e.target.files[0]);
-    });
-}
-
-/* ==================== התחלה ==================== */
-init();
+        u.dailyProteinTarget = Number(document.getElementById('s-prot').value)
