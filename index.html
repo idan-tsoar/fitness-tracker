@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מעקב דיאטה - עידן</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>🏋️ מעקב דיאטה שלי</h1>
+                <div class="user-summary" id="userSummary"></div>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="tracking">📊 מעקב יומי</button>
+            <button class="tab-btn" data-tab="meals">🍽️ תפריט שבועי</button>
+            <button class="tab-btn" data-tab="graphs">📈 גרפים</button>
+            <button class="tab-btn" data-tab="settings">⚙️ הגדרות</button>
+        </nav>
+
+        <main class="tab-content">
+            <!-- מעקב יומי -->
+            <section id="tracking" class="tab-panel active">
+                <div class="panel-header">
+                    <h2>מעקב שבועי</h2>
+                    <button class="btn-add-week" id="addWeekBtn">➕ הוסף שבוע חדש</button>
+                </div>
+                <div id="weeksContainer"></div>
+            </section>
+
+            <!-- תפריט -->
+            <section id="meals" class="tab-panel">
+                <div class="panel-header">
+                    <h2>תפריט שבועי מומלץ</h2>
+                    <span class="subtitle">מגוון, עשיר בחלבון ומהיר להכנה</span>
+                </div>
+                <div class="shake-card" id="shakeCard"></div>
+                <div class="meals-grid" id="mealsGrid"></div>
+            </section>
+
+            <!-- גרפים -->
+            <section id="graphs" class="tab-panel">
+                <div class="panel-header">
+                    <h2>התקדמות בדיאטה</h2>
+                </div>
+                <div class="stats-row" id="statsRow"></div>
+                <div class="chart-container">
+                    <h3>משקל לאורך זמן</h3>
+                    <canvas id="weightChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>קלוריות ממוצעות שבועיות</h3>
+                    <canvas id="caloriesChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>חלבון ממוצע שבועי (גרם)</h3>
+                    <canvas id="proteinChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>אימוני כוח לשבוע</h3>
+                    <canvas id="workoutsChart"></canvas>
+                </div>
+            </section>
+
+            <!-- הגדרות -->
+            <section id="settings" class="tab-panel">
+                <div class="panel-header">
+                    <h2>הגדרות וייעדים</h2>
+                </div>
+                <div class="settings-card" id="settingsCard"></div>
+                <div class="settings-card">
+                    <h3>ניהול נתונים</h3>
+                    <p class="muted">הנתונים נשמרים אוטומטית בדפדפן שלך. אפשר לייצא/לייבא גיבוי:</p>
+                    <div class="btn-row">
+                        <button class="btn-secondary" id="exportBtn">💾 ייצוא נתונים (JSON)</button>
+                        <button class="btn-secondary" id="importBtn">📂 ייבוא נתונים</button>
+                        <button class="btn-danger" id="resetBtn">🗑️ איפוס לברירת מחדל</button>
+                    </div>
+                    <input type="file" id="importFile" accept=".json" style="display:none">
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <span>אפליקציית מעקב אישית • עידן בן 41 • התחלה 83.5 ק״ג</span>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
