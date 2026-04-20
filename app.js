@@ -575,10 +575,81 @@ function renderSettings() {
             <button class="btn-primary" id="saveSettingsBtn">שמור הגדרות</button>
         </div>
     `;
-    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+      document.getElementById('saveSettingsBtn').addEventListener('click', () => {
         u.name = document.getElementById('s-name').value;
         u.age = Number(document.getElementById('s-age').value);
         u.startingWeight = Number(document.getElementById('s-start').value);
         u.workoutsPerWeek = Number(document.getElementById('s-workouts').value);
         u.dailyCalorieTarget = Number(document.getElementById('s-cal').value);
-        u.dailyProteinTarget = Number(document.getElementById('s-prot').value)
+        u.dailyProteinTarget = Number(document.getElementById('s-prot').value);
+        saveData();
+        renderAll();
+        alert('✅ ההגדרות נשמרו');
+    });
+}
+ 
+/* ==================== ייצוא/ייבוא ==================== */
+function exportData() {
+    const json = JSON.stringify(state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `diet_tracker_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+ 
+function importData(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const loaded = JSON.parse(e.target.result);
+            if (!loaded.user || !loaded.weeks) throw new Error('קובץ לא תקין');
+            state = loaded;
+            saveData();
+            renderAll();
+            alert('✅ הנתונים יובאו בהצלחה');
+        } catch (err) {
+            alert('❌ שגיאה בייבוא: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+ 
+function resetData() {
+    if (!confirm('איפוס ימחק את כל המעקב שלך ויחזיר לברירת מחדל. להמשיך?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    state = getDefaultData();
+    saveData();
+    renderAll();
+}
+ 
+/* ==================== אירועים ==================== */
+function attachEvents() {
+    // לשוניות
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+            // רענון גרפים כשעוברים ללשונית שלהם (Chart.js דורש גודל לעדכן)
+            if (btn.dataset.tab === 'graphs') setTimeout(renderGraphs, 50);
+        });
+    });
+ 
+    document.getElementById('addWeekBtn').addEventListener('click', addWeek);
+    document.getElementById('exportBtn').addEventListener('click', exportData);
+    document.getElementById('resetBtn').addEventListener('click', resetData);
+    document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+    document.getElementById('importFile').addEventListener('change', (e) => {
+        if (e.target.files[0]) importData(e.target.files[0]);
+    });
+}
+ 
+/* ==================== התחלה ==================== */
+init();
+ 
