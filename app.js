@@ -575,7 +575,7 @@ function renderSettings() {
             <button class="btn-primary" id="saveSettingsBtn">שמור הגדרות</button>
         </div>
     `;
-      document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
         u.name = document.getElementById('s-name').value;
         u.age = Number(document.getElementById('s-age').value);
         u.startingWeight = Number(document.getElementById('s-start').value);
