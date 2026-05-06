@@ -21,10 +21,25 @@ let mealOverrides = {}; // { dayIdx: { slot: { text, calories, protein } } }
 /* ==================== טעינה והתחלה ==================== */
 async function init() {
     state = await loadData();
-    loadMealOverrides();
+    await loadMealOverrides();
     applyMealOverrides();
     renderAll();
     attachEvents();
+    hideAuthOverlay();
+
+    // הקשבה לשינויים מהענן (סנכרון בין מכשירים)
+    if (cloudSync.ready) {
+        cloudSync.subscribeState((cloudState) => {
+            if (!cloudState || !cloudState.weeks) return;
+            const localStr = JSON.stringify({ user: state.user, weeks: state.weeks });
+            const cloudStr = JSON.stringify({ user: cloudState.user, weeks: cloudState.weeks });
+            if (localStr !== cloudStr) {
+                state.user = cloudState.user;
+                state.weeks = cloudState.weeks;
+                renderAll();
+            }
+        });
+    }
 }
 
 async function loadData() {
@@ -35,15 +50,31 @@ async function loadData() {
     } catch (e) { console.warn('data.json fetch failed - using embedded defaults', e); }
     if (!freshData) freshData = getDefaultData();
 
+    // טעינה מהענן
+    try {
+        const cloud = await cloudSync.loadState();
+        if (cloud && cloud.weeks) {
+            return {
+                user: cloud.user || freshData.user,
+                weeks: cloud.weeks,
+                mealPlan: freshData.mealPlan
+            };
+        }
+    } catch (e) { console.warn('cloud load failed, falling back to localStorage', e); }
+
+    // נפילה אחורה ל-localStorage (מיגרציה אוטומטית)
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             const saved = JSON.parse(stored);
-            return {
+            const merged = {
                 user: saved.user || freshData.user,
                 weeks: saved.weeks || freshData.weeks,
                 mealPlan: freshData.mealPlan
             };
+            // מיגרציה: שמירה ראשונה לענן
+            cloudSync.saveState(merged).then(() => console.log('Migrated localStorage → Firestore'));
+            return merged;
         }
     } catch (e) { console.warn('localStorage read error', e); }
 
@@ -52,19 +83,30 @@ async function loadData() {
 
 function saveData() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    catch (e) { console.error('save error', e); }
+    catch (e) { console.error('local save error', e); }
+    cloudSync.saveStateDebounced(state);
 }
 
-function loadMealOverrides() {
+async function loadMealOverrides() {
+    try {
+        const cloud = await cloudSync.loadOverrides();
+        if (cloud && Object.keys(cloud).length > 0) {
+            mealOverrides = cloud;
+            return;
+        }
+    } catch (e) { console.warn('cloud overrides load failed', e); }
     try {
         const raw = localStorage.getItem(MEAL_OVERRIDES_KEY);
         mealOverrides = raw ? JSON.parse(raw) : {};
+        // מיגרציה
+        if (Object.keys(mealOverrides).length > 0) cloudSync.saveOverrides(mealOverrides);
     } catch (e) { mealOverrides = {}; }
 }
 
 function saveMealOverrides() {
     try { localStorage.setItem(MEAL_OVERRIDES_KEY, JSON.stringify(mealOverrides)); }
-    catch (e) { console.error('overrides save error', e); }
+    catch (e) { console.error('local overrides save error', e); }
+    cloudSync.saveOverridesDebounced(mealOverrides);
 }
 
 function applyMealOverrides() {
@@ -717,11 +759,12 @@ function importData(file) {
     reader.readAsText(file);
 }
 
-function resetData() {
+async function resetData() {
     if (!confirm('איפוס ימחק את כל המעקב שלך ויחזיר לברירת מחדל. להמשיך?')) return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(MEAL_OVERRIDES_KEY);
     mealOverrides = {};
+    try { await cloudSync.resetAll(); } catch (e) { console.warn('cloud reset failed', e); }
     init();
 }
 
@@ -746,5 +789,7 @@ function attachEvents() {
     });
 }
 
-/* ==================== התחלה ==================== */
-init();
+/* ==================== התחלה - מחכה לאימות לפני טעינה ==================== */
+cloudSync.init().then(() => init()).catch((err) => {
+    console.error('Auth init failed:', err);
+});
