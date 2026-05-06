@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // רק חשבון המייל המורשה יכול לגשת לנתונים
+    // הגישה מוגבלת גם לפי UID — כל משתמש רואה רק את הנתונים שלו
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                       && request.auth.uid == userId
+                       && request.auth.token.email == 'idantsoar@gmail.com'
+                       && request.auth.token.email_verified == true;
+    }
+
+    // חסום הכל מחוץ ל-/users
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
